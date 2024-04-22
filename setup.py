@@ -18,7 +18,7 @@ setup(
     long_description_content_type='text/markdown',
     author='Ivan Yanakiev',
     author_email='ivan.y.yanakiev@gmail.com',
-    url='https://github.com/yourgithub/KrakenExchangeAPI',
+    url='https://github.com/IYanakiev34/TriremeTask',
     keywords='Kraken API Cryptocurrency Exchange Websocket',
     license='MIT',
 )
