@@ -6,7 +6,7 @@ def docstring_message(cls):
     https://stackoverflow.com/questions/49224770/default-message-in-custom-exception-python/66491013#66491013
     """
     # Must use cls_init name, not cls.__init__ itself, in closure to avoid recursion
-    cls_init = cls.__init__ 
+    cls_init = cls.__init__
     @functools.wraps(cls.__init__)
     def wrapped_init(self, msg=cls.__doc__, *args, **kwargs):
         cls_init(self, msg, *args, **kwargs)
@@ -34,4 +34,3 @@ EXCEPTIONS = {
     "EOrder:Rate limit exceeded": KrakenRateLimitError,
     "EQuery:Unknown asset pair": KrakenUnknownAssetPair
 }
-

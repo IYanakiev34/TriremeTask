@@ -1,15 +1,16 @@
 import base64
-import requests
-import urllib.parse
-import hmac
-import hashlib
-import time
-import json
-import threading
-import websocket
 from enum import Enum
+import hashlib
+import hmac
+import json
+import time
+import threading
+import urllib.parse
+import requests
+import websocket
 
-from error_handler import KrakenErrorHandler
+from kraken.error_handler import KrakenErrorHandler
+
 
 class Interval(Enum):
     ONE_MINUTE = 1
@@ -22,6 +23,7 @@ class Interval(Enum):
     ONE_WEEK = 10080
     FIFTEEN_DAYS = 21600
 
+
 class OrderType(Enum):
     MARKET = "market"
     LIMIT = "limit"
@@ -31,14 +33,25 @@ class OrderType(Enum):
     TAKE_PROFIT_LIMIT = "take-profit-limit"
     SETTLE_POSITION = "settle-position"
 
-class Type(Enum):  
+
+class Type(Enum):
     BUY = "buy"
     SELL = "sell"
 
+
 class AddOrder:
-    def __init__(self, pair, type: Type, ordertype: OrderType, volume, price=None, leverage=None):
+
+    def __init__(
+        self,
+        pair,
+        order_type: Type,
+        ordertype: OrderType,
+        volume,
+        price=None,
+        leverage=None,
+    ):
         self.pair = pair
-        self.type = type
+        self.order_type = order_type
         self.ordertype = ordertype
         self.volume = volume
         self.price = price
@@ -47,13 +60,12 @@ class AddOrder:
     def to_dict(self):
         return {
             "pair": self.pair,
-            "type": self.type,
+            "type": self.order_type.value,
             "ordertype": self.ordertype,
             "volume": self.volume,
             "price": self.price,
-            "leverage": self.leverage
+            "leverage": self.leverage,
         }
-
 
 
 class KrakenExchange:
@@ -81,12 +93,14 @@ class KrakenExchange:
 
     def _get_websocket_token(self):
         url = f"{self.HTTPS_API_URL}/0/private/GetWebSocketsToken"
-        data = {'nonce': self._generate_nonce()}
-        headers = {'API-Key': self.api_key, 'API-Sign': self._generate_signature('/0/private/GetWebSocketsToken', data)}
-        response = requests.post(url, headers=headers, data=data).json()
-        if response['error']:
-            raise Exception(f"Failed to get WebSocket token: {response['error']}")
-        self.token = response['result']['token']
+        data = {"nonce": self._generate_nonce()}
+        headers = {
+            "API-Key": self.api_key,
+            "API-Sign": self._generate_signature("/0/private/GetWebSocketsToken", data),
+        }
+        response = requests.post(url, headers=headers, data=data, timeout=10).json()
+        self.err_handler.check_for_error(response)
+        self.token = response["result"]["token"]
 
     def _generate_signature(self, urlpath: str, data: dict):
         """
@@ -102,7 +116,7 @@ class KrakenExchange:
         """
 
         postdata = urllib.parse.urlencode(data)
-        encoded = (str(data['nonce']) + postdata).encode()
+        encoded = (str(data["nonce"]) + postdata).encode()
         message = urlpath.encode() + hashlib.sha256(encoded).digest()
 
         mac = hmac.new(base64.b64decode(self.api_secret), message, hashlib.sha512)
@@ -118,7 +132,7 @@ class KrakenExchange:
         """
         return int(time.time() * 1000)
 
-    def _api_request(self, method: str, endpoint: str, data: dict = None, otp: bool = None):
+    def _api_request(self, method: str, endpoint: str, data: dict | None = None):
         url = f"{self.HTTPS_API_URL}{endpoint}"
         headers = {}
 
@@ -126,25 +140,25 @@ class KrakenExchange:
         if data is None:
             data = {}
 
-        data['nonce'] = self._generate_nonce()
+        data["nonce"] = self._generate_nonce()
         # Adding nonce for every private request
         if "/private/" in endpoint:
-             # Add OTP to the payload if 2FA is required and otp is provided
-            if otp:
-                data['otp'] = otp
             # Signature needs to be generated after adding nonce and possibly otp
-            headers['API-Key'] = self.api_key
-            headers['API-Sign'] = self._generate_signature(endpoint, data)
+            headers["API-Key"] = self.api_key
+            headers["API-Sign"] = self._generate_signature(endpoint, data)
 
         # Adjust how data is sent based on the method; GET typically does not have a body
-        if method.upper() in ['GET', 'DELETE']:
-            response = requests.request(method, url, headers=headers, params=data)
+        if method.upper() in ["GET", "DELETE"]:
+            response = requests.request(
+                method, url, headers=headers, params=data, timeout=10
+            )
         else:
-            response = requests.request(method, url, headers=headers, data=data)
-        
+            response = requests.request(
+                method, url, headers=headers, data=data, timeout=10
+            )
 
         return self.err_handler.check_for_error(response.json())
-    
+
     def setup_midprice_feed(self, pair):
         """
         Sets up a WebSocket connection to receive real-time mid-price updates for a specified trading pair.
@@ -155,43 +169,41 @@ class KrakenExchange:
             This function uses a separate thread to handle the WebSocket connection.
         """
 
-        def on_message(ws, message):
+        def on_message(ws, message):  # pylint: disable=unused-argument
             data = json.loads(message)
-            if 'result' in data and 'as' in data['result'] and 'bs' in data['result']:
-                best_ask = float(data['result']['as'][0][0])
-                best_bid = float(data['result']['bs'][0][0])
+            if "result" in data and "as" in data["result"] and "bs" in data["result"]:
+                best_ask = float(data["result"]["as"][0][0])
+                best_bid = float(data["result"]["bs"][0][0])
                 mid_price = (best_ask + best_bid) / 2
                 print(f"Mid-price update for {pair}: {mid_price}")
 
-        def on_error(ws, error):
+        def on_error(ws, error):  # pylint: disable=unused-argument
             print("Error:", error)
 
-        def on_close(ws):
+        def on_close(ws):  # pylint: disable=unused-argument
             print("### WebSocket closed ###")
 
         def on_open(ws):
             self._get_websocket_token()  # Ensure token is refreshed
             subscribe_message = {
                 "method": "subscribe",
-                "params": {
-                    "channel":"book",
-                    "snapshot": False,
-                    "symbol": [pair]
-                },
-                "req_id": self._generate_nonce()
+                "params": {"channel": "book", "snapshot": False, "symbol": [pair]},
+                "req_id": self._generate_nonce(),
             }
             ws.send(json.dumps(subscribe_message))
 
         # Choose the correct URL based on whether it's private or public data access
         ws_url = self.WSS_PRIVATE_API_URL if self.token else self.WSS_PUBLIC_API_URL
-        ws = websocket.WebSocketApp(ws_url,
-                                    on_open=on_open,
-                                    on_message=on_message,
-                                    on_error=on_error,
-                                    on_close=on_close)
+        ws = websocket.WebSocketApp(
+            ws_url,
+            on_open=on_open,
+            on_message=on_message,
+            on_error=on_error,
+            on_close=on_close,
+        )
 
         threading.Thread(target=ws.run_forever).start()
-    
+
     def fetch_balances(self):
         """
         Fetches the account balances from Kraken's private API.
@@ -208,12 +220,13 @@ class KrakenExchange:
             }
         }
         """
-         
         endpoint = "/0/private/Balance"
         response = self._api_request("POST", endpoint)
         return response
-    
-    def fetch_ohlcv(self, pair: str, interval: Interval = Interval.ONE_MINUTE, since: int = None):
+
+    def fetch_ohlcv(
+        self, pair: str, interval: Interval = Interval.ONE_MINUTE, since: int = None
+    ):
         """
         Fetches OHLCV data for a specified trading pair, inteval, and optional since timestamp.
 
@@ -224,7 +237,7 @@ class KrakenExchange:
 
         Returns:
             dict: A dictionary containing OHLCV data or an error message.
-        """ 
+        """
 
         endpoint = "/0/public/OHLC"
         data = {
@@ -235,7 +248,7 @@ class KrakenExchange:
             data["since"] = since
         response = self._api_request("GET", endpoint, data)
         return response
-    
+
     def place_order(self, order: AddOrder):
         """
         Places an order on the Kraken exchange.
@@ -251,6 +264,6 @@ class KrakenExchange:
         order_dict = order.to_dict()
 
         response = self._api_request("POST", endpoint, order_dict)
-         # Extract and return order ID
-        txid = response.get('result', {}).get('txid', [])
+        # Extract and return order ID
+        txid = response.get("result", {}).get("txid", [])
         return txid[0]
