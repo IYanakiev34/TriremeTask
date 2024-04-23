@@ -7,7 +7,7 @@ def load_config(config_file):
     config.read(config_file)
     return config
 
-def create_kraken_object(config_file='private.cfg'):
+def create_kraken_object(config_file='kraken.cfg'):
     config = load_config(config_file)
     api_key = config.get('KrakenAPI', 'API_KEY')
     api_secret = config.get('KrakenAPI', 'API_SECRET')
