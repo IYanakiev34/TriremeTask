@@ -9,6 +9,8 @@ import threading
 import websocket
 from enum import Enum
 
+from error_handler import KrakenErrorHandler
+
 class Interval(Enum):
     ONE_MINUTE = 1
     FIVE_MINUTES = 5
@@ -75,10 +77,11 @@ class KrakenExchange:
         self.api_key = api_key
         self.api_secret = api_secret
         self.token = None
+        self.err_handler = KrakenErrorHandler()
 
     def _get_websocket_token(self):
         url = f"{self.HTTPS_API_URL}/0/private/GetWebSocketsToken"
-        data = {'nonce': int(time.time() * 1000)}
+        data = {'nonce': self._generate_nonce()}
         headers = {'API-Key': self.api_key, 'API-Sign': self._generate_signature('/0/private/GetWebSocketsToken', data)}
         response = requests.post(url, headers=headers, data=data).json()
         if response['error']:
@@ -138,8 +141,9 @@ class KrakenExchange:
             response = requests.request(method, url, headers=headers, params=data)
         else:
             response = requests.request(method, url, headers=headers, data=data)
+        
 
-        return response.json()
+        return self.err_handler.check_for_error(response.json())
     
     def setup_midprice_feed(self, pair):
         """
@@ -209,7 +213,7 @@ class KrakenExchange:
         response = self._api_request("POST", endpoint)
         return response
     
-    def fetch_ohlcv(self, pair: str, interval: Interval, since: int =None):
+    def fetch_ohlcv(self, pair: str, interval: Interval = Interval.ONE_MINUTE, since: int = None):
         """
         Fetches OHLCV data for a specified trading pair, inteval, and optional since timestamp.
 
@@ -225,9 +229,10 @@ class KrakenExchange:
         endpoint = "/0/public/OHLC"
         data = {
             "pair": pair,
-            "interval": interval,
-            "since": since
+            "interval": interval.value,
         }
+        if since:
+            data["since"] = since
         response = self._api_request("GET", endpoint, data)
         return response
     
@@ -243,24 +248,9 @@ class KrakenExchange:
         """
 
         endpoint = "/0/private/AddOrder"
-        required_keys = {"pair", "type", "ordertype", "volume"}
-
-        # Validate all keys are present
         order_dict = order.to_dict()
-        if not all(key in order_dict for key in required_keys):
-            raise ValueError(f"Missing required keys in order: {required_keys}")
-        
-        if order_dict['ordertype'] == OrderType.LIMIT:
-            if 'price' not in order_dict:
-                raise ValueError("Missing required key 'price' for LIMIT order")
-            
+
         response = self._api_request("POST", endpoint, order_dict)
-        if response.get('error'):
-            return None, response['error']
-        
          # Extract and return order ID
         txid = response.get('result', {}).get('txid', [])
-        if txid:
-            return txid[0], None
-
-        return None, "Order placed but no transaction ID returned."
+        return txid[0]

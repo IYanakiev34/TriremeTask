@@ -1,6 +1,3 @@
-# API KEY: yFq37dWrUYZF1XO3ezPHf1OO4jTHUr/bwAcqXpTtzMwEZc4Eaa1WMFUJ
-# Private Key: 2qIKpzptr0c4FesQdZe5heryunCsrZh0456sm/3KaobLaqq/DqRua4mrpmTAiESywHJHodQCUkvUeJgN296h6Q==
-
 from kraken import KrakenExchange, Interval
 import configparser
 
@@ -22,6 +19,7 @@ if __name__ == "__main__":
     kraken_conn = create_kraken_object()
     kraken_conn.setup_midprice_feed("BTC/USD")
     print(f"Connected to Kraken WebSocket feed for BTC/USD.")
-    print(f"OHLC data for BTC/USD: {kraken_conn.fetch_ohlcv('BTC/USD', Interval.ONE_MINUTE)}")
+    print(f"Balances: {kraken_conn.fetch_balances()}")
+    print(f"OHLC data for BTC/USD: {kraken_conn.fetch_ohlcv('XBTUSD')}")
 
 
