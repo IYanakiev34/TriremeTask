@@ -79,11 +79,8 @@ from kraken_exchange import AddOrder, Type, OrderType
 order = AddOrder(pair='XBTUSD', type=Type.BUY, ordertype=OrderType.LIMIT, volume='0.5', price='30000')
 
 # Place the order
-order_id, error = kraken.place_order(order)
-if error:
-    print("Error:", error)
-else:
-    print("Order ID:", order_id)
+order_id = kraken.place_order(order)
+print(f"OrderId: {order_id}")
 ```
 
 ### Setting Up Real-Time Mid-Price Feed
@@ -91,6 +88,11 @@ else:
 # Monitor mid-price for Ethereum against USD
 kraken.setup_midprice_feed('ETHUSD')
 ```
+
+## Error Handling
+Some common exceptions are implemented in the `exceptions.py` file. Each exception is decorated so that it shows the proper message.
+In the future more exceptions can be easily added without adding new error handling logic. All errors are handled by an error handler which
+will check each response for error, if any will raise the proper exception. Thus, giving the user maximum information.
 
 ## License
 This project is licensed under: `LGPLv3`

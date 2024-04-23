@@ -73,7 +73,7 @@ class KrakenExchange:
     WSS_PUBLIC_API_URL = "wss://ws.kraken.com/v2"
     WSS_PRIVATE_API_URL = "wss://ws-auth.kraken.com/v2"
 
-    def __init__(self, api_key: str, api_secret: str):
+    def __init__(self, api_key: str, api_secret: str, use_exceptions: bool = True):
         """
         Initializes the KrakenExchange with necessary API credentials.
 
@@ -89,7 +89,7 @@ class KrakenExchange:
         self.api_key = api_key
         self.api_secret = api_secret
         self.token = None
-        self.err_handler = KrakenErrorHandler()
+        self.err_handler = KrakenErrorHandler() if use_exceptions else None
 
     def _get_websocket_token(self):
         url = f"{self.HTTPS_API_URL}/0/private/GetWebSocketsToken"
@@ -157,6 +157,9 @@ class KrakenExchange:
                 method, url, headers=headers, data=data, timeout=10
             )
 
+        if self.err_handler is None: # No exception handling
+            return response.json()
+        
         return self.err_handler.check_for_error(response.json())
 
     def setup_midprice_feed(self, pair):
