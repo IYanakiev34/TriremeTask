@@ -31,12 +31,19 @@ The `KrakenExchange` API client is a Python library for interacting with the Kra
     ```
 
 2. **Install Dependencies**
+    If you want to install it you can run:
     ```bash
     python setup.py install
     ```
 
 ## Configuration
 Place your api key and secret in the `kraken.cfg` file.
+
+## Run 
+If you want to simply run an example plugin your credentials in the kraken.cfg file and run the main.py file
+```bash
+    python main.py
+```
 
 ## Usage
 Import and use the KrakenExchange I will outline some common use cases:
